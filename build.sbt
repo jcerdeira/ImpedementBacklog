@@ -9,12 +9,14 @@ name := "impedementbacklog"
 // All other initialization methods are implemented in terms of these.
 version := "1.0-SNAPSHOT"
 
-scalaVersion := "2.9.0" 
+scalaVersion := "2.9.2" 
 
 sbtPlugin := true
 
+resolvers += "JIRA Repo" at "https://maven.atlassian.com/content/groups/public/"
+
 // Add a single dependency
 libraryDependencies ++= Seq(
-	"net.sourceforge.jexcelapi" % "jxl" % "2.6.12"
+	"com.atlassian.jira.plugins" % "jira-soapclient" % "4.4"
 )
 
