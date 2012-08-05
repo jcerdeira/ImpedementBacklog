@@ -17,6 +17,11 @@ resolvers += "JIRA Repo" at "https://maven.atlassian.com/content/groups/public/"
 
 // Add a single dependency
 libraryDependencies ++= Seq(
-	"com.atlassian.jira.plugins" % "jira-soapclient" % "4.4"
+	"com.atlassian.jira.plugins" % "jira-soapclient" % "4.4",
+	"junit" % "junit" % "4.10" % "test",
+	"com.novocode" % "junit-interface" % "0.8" % "test",
+	"org.specs2" % "specs2_2.9.2" % "1.11",
+	"org.apache.geronimo.configs" % "javamail" % "3.0.0",
+	"com.typesafe" % "config" % "0.5.0"
 )
 

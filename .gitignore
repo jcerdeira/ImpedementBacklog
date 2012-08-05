@@ -4,3 +4,6 @@ target
 .ensime
 .history
 .lib/
+.ensime_port
+.settings/
+src/main/resources/application.conf
