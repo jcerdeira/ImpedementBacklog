@@ -5,29 +5,29 @@ import java.text.DecimalFormat;
 import java.net.URL;
 import com.typesafe.config._
 
+import com.atlassian.jira.rpc.soap.client._
+
+
   class HelloWorldSpec extends Specification {
 
     "The 'Hello world' string" should {
       "contain 11 characters" in {
 
+        
+        
         val conf = ConfigFactory.load()
 
         val baseUrl = conf.getString("jira.url")
-
-        val soapSession = SOAPSession(new URL(baseUrl));
-
-        val timing = Timing.startTiming("JIRA SOAP client sample");
+        implicit val soapSession = SOAPSession(new URL(baseUrl));
 
         soapSession.connect(conf.getString("jira.authentication.user"),conf.getString("jira.authentication.password"))
 
-        val jiraSoapService = soapSession.getJiraSoapService();
         println("JIRA Token:" + soapSession.authenticationToken)
 
-        //val issue = jiraSoapService.getIssueById(soapSession.authenticationToken, "issueId");
-
+        val jiraOps = new JiraOperations()
+        
         val jql = "project = EIDCV AND component = \"Pending Internal\" ORDER BY due ASC, priority DESC, created ASC"
-
-        jiraSoapService.getIssuesFromJqlSearch(soapSession.authenticationToken,jql,50) foreach{ it => println(it.getSummary)}
+        jiraOps.getIssues(jql) foreach (it => println(it.serialize))
 
         "Hello world" must have size(11)
       }
@@ -42,30 +42,6 @@ import com.typesafe.config._
   }
 
 
-
-   case class Timing(operationDesc:String,then:Long){
-
-        def printTiming()
-        {
-            val howLong = System.currentTimeMillis() - this.then
-            println("________________________________________________________________");
-            val decFormat = new DecimalFormat("###,##0")
-            println("\t" + this.operationDesc + " took " 
-              + decFormat.format(howLong) + " ms to run")
-        }
-
-   }
-
-   object Timing{
-
-         def startTiming(operationDesc:String): Timing =
-        {
-            println("\nRunning : " + operationDesc)
-            Timing(operationDesc,System.currentTimeMillis())
-        }
-
-    }
-
 import com.atlassian.jira.rpc.soap.client.JiraSoapService;
 import com.atlassian.jira.rpc.soap.client.JiraSoapServiceService;
 import com.atlassian.jira.rpc.soap.client.JiraSoapServiceServiceLocator;
@@ -73,12 +49,10 @@ import com.atlassian.jira.rpc.soap.client.JiraSoapServiceServiceLocator;
 import java.rmi.RemoteException;
 import javax.xml.rpc.ServiceException;
 
-/**
- * This represents a SOAP session with JIRA including that state of being logged in or not
- */
 class SOAPSession(jiraSoapServiceLocator:JiraSoapServiceService, 
                   jiraSoapService:JiraSoapService) {
-    
+  
+
     var authenticationToken:String=null
 
     def connect(userName:String, password:String) = {
@@ -94,10 +68,24 @@ class SOAPSession(jiraSoapServiceLocator:JiraSoapServiceService,
     def getJiraSoapServiceLocator() : JiraSoapServiceService = {
         return jiraSoapServiceLocator;
     }
+    
 }
 
-object SOAPSession{
+class JiraOperations(implicit soapSession:SOAPSession){
+  
+  val statuses = JiraClientUtil.obtainStatus
+  val resolutions = JiraClientUtil.obtainResolutions
+  
+  implicit def remoteIssueEnhanced(ri : RemoteIssue) = new EnhancedRemoteIssue(ri,statuses,resolutions)
+  
+  def getIssues(jql:String): Seq[EnhancedRemoteIssue] = {
+      soapSession.getJiraSoapService.getIssuesFromJqlSearch(soapSession.authenticationToken,jql,50) map {it => remoteIssueEnhanced(it)}
+    }
+  
+}
 
+
+object SOAPSession{
   def apply(webServicePort:URL):SOAPSession ={
         val jiraSoapServiceLocator = new JiraSoapServiceServiceLocator()
         if (webServicePort == null) {
@@ -106,19 +94,62 @@ object SOAPSession{
           val jiraSoapService = jiraSoapServiceLocator.getJirasoapserviceV2(webServicePort)
           println("SOAP Session service endpoint at " + webServicePort.toExternalForm())
           new SOAPSession(jiraSoapServiceLocator,jiraSoapService)
-        }
-        
+        }   
   }
 }
 
-// Romete Issue Implicit :D
+class EnhancedRemoteIssue(ri:RemoteIssue, statuses:Map[String,String], resolutions:Map[String,String])  {
+  
+    implicit def remoteComponentEnhanced(rc : RemoteComponent) = new EnhancedRemoteComponent(rc)
 
-import com.atlassian.jira.rpc.soap.client.RemoteIssue
+    def serialize()(implicit soapSession:SOAPSession):String = {
+      
+      def formatDate(date:java.util.Calendar): String = {
+        val sdf = new java.text.SimpleDateFormat("yyy-MM-dd HH:mm")
+        sdf.format(date.getTime)
+      }
 
-
-class DecorateRemoteIssue(ri:RemoteIssue)  {
-
-    override def toString():String = {
-      ri.getSummary
+      "Issue : {" + 
+        "\n\tKey : " + ri.getKey + 
+        "\n\tSumary : " + ri.getSummary + 
+        "\n\tRetorter : " + ri.getReporter + 
+        "\n\tAssignee : " + ri.getAssignee +
+        "\n\tCreated : " + formatDate(ri.getCreated) +
+        "\n\tUpdated : " + formatDate(ri.getUpdated) +
+        "\n\tStatus : " + statuses.get(ri.getStatus).getOrElse("None") +
+        "\n\tResolution : " + resolutions.get(ri.getResolution).getOrElse("None") +
+        //"\n\tDescription : " + ri.getDescription +
+        "\n\tComponents: ["+ ri.getComponents.map(EnhancedRemoteComponent.serialize(_)).mkString(",") + "]" + 
+        "\n}"
     }
+    
+}
+object EnhancedRemoteIssue{
+    
+  def print(eri:EnhancedRemoteIssue)(implicit soapSession:SOAPSession) ={
+    println(eri.serialize)
+  }
+}
+
+class EnhancedRemoteComponent(rc:RemoteComponent){
+  override def toString(): String = {
+      "Component : { Name: " + rc.getName + "}"
+    }
+}
+object EnhancedRemoteComponent{
+  def serialize(erc: EnhancedRemoteComponent): String = {
+    erc.toString
+  }
+}
+
+object JiraClientUtil{
+  
+  def obtainResolutions(implicit soapSession:SOAPSession): Map[String,String] = {
+    soapSession.getJiraSoapService.getResolutions(soapSession.authenticationToken).map(it => (it.getId->it.getName)).toMap;
+  }
+  
+  def obtainStatus(implicit soapSession:SOAPSession): Map[String,String] = {
+    soapSession.getJiraSoapService.getStatuses(soapSession.authenticationToken).map(it => (it.getId->it.getName)).toMap;
+  }
+  
 }
