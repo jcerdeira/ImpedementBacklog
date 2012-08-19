@@ -24,10 +24,13 @@ libraryDependencies ++= Seq(
 	"com.novocode" % "junit-interface" % "0.8" % "test",
 	"org.specs2" % "specs2_2.9.2" % "1.11",
 	"com.typesafe" % "config" % "0.5.0",
-	"log4j" % "log4j" % "1.2.17" excludeAll(
-    		ExclusionRule(organization = "com.sun.jdmk"),
-    		ExclusionRule(organization = "com.sun.jmx"),
-    		ExclusionRule(organization = "javax.jms")
-  	)	
-)
+	"log4j" % "log4j" % "1.2.17",
+	"net.sourceforge.jexcelapi" % "jxl" % "2.6.12"
+	)
+//	excludeAll(
+//    		ExclusionRule(organization = "com.sun.jdmk"),
+//    		ExclusionRule(organization = "com.sun.jmx"),
+//    		ExclusionRule(organization = "javax.jms")
+//  	)	
+//)
 
